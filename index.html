@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="VOIDRUNNER — a neon arcade survival shooter. Weave the swarm, fight bosses, chase a high score.">
+<meta name="description" content="VOIDRUNNER — a neon arcade survival shooter with a global leaderboard. Weave the swarm, fight bosses, chase a high score.">
 <meta name="theme-color" content="#0A0D1C">
 <meta property="og:title" content="VOIDRUNNER">
-<meta property="og:description" content="A neon arcade survival shooter. Weave the swarm, fight WARLORD bosses, chase a high score.">
+<meta property="og:description" content="A neon arcade survival shooter with a global leaderboard. Fight WARLORD bosses and climb the ranks.">
 <meta property="og:type" content="website">
 <style>html,body{height:100%}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent}</style>
 <title>VOIDRUNNER</title>
@@ -129,8 +129,55 @@
     display:flex; gap:16px; align-items:center; }
   .footer b{ color:var(--plasma); font-weight:400; }
 
+  /* ---- pilot name entry ---- */
+  .namebox{ display:flex; flex-direction:column; gap:7px; align-items:center; margin-top:2px; }
+  .nlabel{ font-size:9px; letter-spacing:.3em; color:var(--dust); }
+  .pilot{ font-family:var(--mono); font-size:18px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    text-align:center; color:var(--star); background:rgba(10,13,28,.66); border:1px solid rgba(67,225,255,.35);
+    border-radius:10px; padding:11px 14px; width:min(74vw,240px); outline:none; caret-color:var(--plasma); }
+  .pilot::placeholder{ color:#4a5178; letter-spacing:.14em; }
+  .pilot:focus{ border-color:var(--plasma); box-shadow:0 0 0 3px rgba(67,225,255,.14), 0 0 20px rgba(67,225,255,.25); }
+  .pilot.shake{ animation:shakeX .35s; border-color:var(--rose); }
+  @keyframes shakeX{ 0%,100%{transform:translateX(0);} 20%{transform:translateX(-7px);} 40%{transform:translateX(7px);}
+    60%{transform:translateX(-5px);} 80%{transform:translateX(5px);} }
+
+  /* ---- buttons ---- */
+  .btn{ font-family:var(--mono); font-size:13px; font-weight:700; letter-spacing:.16em; color:var(--void2);
+    background:linear-gradient(180deg,#5cf0ff,#43E0FF); border:none; border-radius:10px; padding:12px 22px; cursor:pointer;
+    box-shadow:0 0 22px rgba(67,225,255,.4); transition:transform .1s, box-shadow .2s; }
+  .btn:hover{ box-shadow:0 0 30px rgba(67,225,255,.62); }
+  .btn:active{ transform:translateY(1px) scale(.98); }
+  .btn:focus-visible{ outline:2px solid var(--star); outline-offset:3px; }
+  .btn.ghost{ background:transparent; color:var(--dust); box-shadow:none; border:1px solid rgba(124,132,173,.34); }
+  .btn.ghost:hover{ color:var(--star); border-color:var(--star); box-shadow:none; }
+  .launch{ margin-top:4px; font-size:15px; padding:13px 30px; }
+  .btnrow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; margin-top:2px; }
+
+  /* ---- game over + leaderboard ---- */
+  .screen.go{ justify-content:flex-start; gap:9px; padding:20px 18px 18px; overflow-y:auto; }
+  .title.mid{ font-size:clamp(26px,7vw,38px); }
+  .yourrank{ font-size:12px; letter-spacing:.1em; color:var(--star); }
+  .yourrank b{ color:var(--plasma); font-variant-numeric:tabular-nums; }
+  .board{ width:100%; max-width:340px; background:rgba(10,13,28,.5); border:1px solid rgba(124,132,173,.18);
+    border-radius:12px; padding:10px 10px 8px; display:flex; flex-direction:column; gap:6px; }
+  .bhead{ display:flex; justify-content:space-between; align-items:baseline; font-size:9px; letter-spacing:.26em;
+    color:var(--dust); padding:0 4px; }
+  .bmode{ color:var(--plasma); }
+  .brows{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; max-height:32vh; overflow-y:auto; }
+  .brow{ display:grid; grid-template-columns:24px 1fr auto; align-items:center; gap:8px;
+    padding:6px 8px; border-radius:7px; font-size:13px; }
+  .brow .brank{ font-size:11px; color:var(--dust); font-variant-numeric:tabular-nums; text-align:right; font-weight:700; }
+  .brow .bname{ text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--star); }
+  .brow .bscore{ font-variant-numeric:tabular-nums; color:var(--star); }
+  .brow:nth-child(1) .brank{ color:#FFD84D; }
+  .brow:nth-child(2) .brank{ color:#CBD3F0; }
+  .brow:nth-child(3) .brank{ color:#E0954B; }
+  .brow.me{ background:linear-gradient(90deg, rgba(255,77,109,.22), rgba(255,77,109,.05)); box-shadow:inset 0 0 0 1px rgba(255,77,109,.42); }
+  .brow.me .bname, .brow.me .bscore{ color:#FFC7D2; }
+  .brow.loading{ display:block; text-align:center; color:var(--dust); font-size:11px; letter-spacing:.2em; padding:16px 0; }
+
   @media (prefers-reduced-motion: reduce){
-    .prompt,.stage.danger::before{ animation:none; }
+    .prompt,.stage.danger::before,.pilot.shake{ animation:none; }
   }
 </style>
 
@@ -166,16 +213,29 @@
         <div>MOVE &nbsp; <span>MOUSE · TOUCH · WASD / ARROWS</span></div>
         <div>FIRE &nbsp; <span>AUTOMATIC</span></div>
       </div>
-      <div class="prompt">CLICK · TAP · SPACE TO LAUNCH</div>
+      <div class="namebox">
+        <label class="nlabel" for="pilot">ENTER PILOT NAME</label>
+        <input id="pilot" class="pilot" maxlength="16" placeholder="CALLSIGN"
+               autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go" />
+      </div>
+      <button class="btn launch" id="launchBtn">LAUNCH ▸</button>
     </div>
 
     <!-- GAME OVER -->
     <div class="screen go hide" id="overScreen">
-      <h1 class="title big">GAME&nbsp;OVER</h1>
-      <div class="newbest" id="newbest" style="visibility:hidden">◆ NEW BEST ◆</div>
+      <h1 class="title mid">GAME OVER</h1>
+      <div class="newbest" id="newbest" style="visibility:hidden">◆ NEW PERSONAL BEST ◆</div>
       <div class="finalscore" id="final">000000</div>
-      <div class="statline" id="overstats">BEST 000000 · TIME 0:00</div>
-      <div class="prompt">CLICK · TAP · SPACE TO RETRY</div>
+      <div class="statline" id="overstats">TIME 0:00 · BEST 000000</div>
+      <div class="yourrank" id="yourrank">—</div>
+      <div class="board">
+        <div class="bhead"><span>LEADERBOARD</span><span class="bmode" id="boardmode"></span></div>
+        <ol class="brows" id="brows"><li class="brow loading">—</li></ol>
+      </div>
+      <div class="btnrow">
+        <button class="btn" id="againBtn">PLAY AGAIN ▸</button>
+        <button class="btn ghost" id="changeBtn">CHANGE PILOT</button>
+      </div>
     </div>
   </div>
 
@@ -252,6 +312,56 @@
   const sPower  = ()=>{ if(!actx)return; const t=actx.currentTime; blip(660,0.09,'triangle',0.14,t); blip(990,0.12,'triangle',0.13,t+0.08); };
   function sOver(){ if(!actx)return; const t=actx.currentTime; [440,330,247,165].forEach((f,i)=>blip(f,0.22,'sawtooth',0.13,t+i*0.12)); }
 
+  // ---------- leaderboard (Firestore global, localStorage fallback) ----------
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDKlF8ae9J7Dw8lUZoH4XevyZsi7oDtT6g",
+    authDomain: "voidrunner-arcade.firebaseapp.com",
+    projectId: "voidrunner-arcade",
+    storageBucket: "voidrunner-arcade.firebasestorage.app",
+    messagingSenderId: "593551568800",
+    appId: "1:593551568800:web:34dc3709ad5e89f9d3bec5"
+  };
+  const FB_VER = "10.14.1";
+  const LB = {
+    mode:'init', db:null, fx:null, _p:null,
+    init(){
+      if(this._p) return this._p;
+      this._p = (async ()=>{
+        try{
+          const appMod = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-app.js`);
+          const fs = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-firestore.js`);
+          this.db = fs.getFirestore(appMod.initializeApp(FIREBASE_CONFIG));
+          this.fx = fs; this.mode = 'firebase';
+        }catch(e){ this.mode = 'local'; }
+        return this.mode;
+      })();
+      return this._p;
+    },
+    _all(){ try{ return JSON.parse(localStorage.getItem('vr_board')||'[]'); }catch(e){ return []; } },
+    _save(a){ try{ localStorage.setItem('vr_board', JSON.stringify(a.slice(0,100))); }catch(e){} },
+    async submit(name, score){
+      if(this.mode==='init') await this.init();
+      if(this.mode==='firebase'){
+        try{
+          const { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs, where, getCountFromServer } = this.fx;
+          const col = collection(this.db,'leaderboard');
+          const ref = await addDoc(col, { name, score, created: serverTimestamp() });
+          const snap = await getDocs(query(col, orderBy('score','desc'), limit(10)));
+          const top = snap.docs.map(d=>({ id:d.id, name:d.data().name, score:d.data().score }));
+          const cnt = await getCountFromServer(query(col, where('score','>', score)));
+          return { id:ref.id, top, rank:cnt.data().count+1, mode:'firebase' };
+        }catch(e){ /* network/permission — fall back to local so the board still shows */ }
+      }
+      const all = this._all();
+      const id = 'L'+Date.now()+'-'+Math.floor(Math.random()*1e6);
+      all.push({ id, name, score, ts:Date.now() });
+      all.sort((a,b)=> b.score-a.score || a.ts-b.ts);
+      this._save(all);
+      const top = all.slice(0,10).map(e=>({ id:e.id, name:e.name, score:e.score }));
+      return { id, top, rank: all.filter(e=>e.score>score).length+1, mode:'local' };
+    }
+  };
+
   // ---------- entities ----------
   let player=null;
   let bullets=[], enemies=[], particles=[], powerups=[], floaters=[], stars=[], neb=[], ebullets=[];
@@ -260,6 +370,7 @@
   let streak=0, mult=1, elapsed=0, spawnAcc=0, fireCd=0, shake=0, runTime=0;
   let beatBest=false;
   let bossActive=false, bossRef=null, bossNum=0, nextBossScore=500000;
+  let currentName='', submitted=false;
   const MAX_LIVES=5;
 
   function makeStars(){
@@ -290,16 +401,17 @@
   const pointer={x:0,y:0,active:false};
   function toWorld(e){ const r=cvs.getBoundingClientRect(); return { x:(e.clientX-r.left)*(W/r.width), y:(e.clientY-r.top)*(H/r.height) }; }
   cvs.addEventListener('pointermove', e=>{ const p=toWorld(e); pointer.x=p.x; pointer.y=p.y; pointer.active=true; }, {passive:true});
-  cvs.addEventListener('pointerdown', e=>{ const p=toWorld(e); pointer.x=p.x; pointer.y=p.y; pointer.active=true; launch(); });
+  cvs.addEventListener('pointerdown', e=>{ const p=toWorld(e); pointer.x=p.x; pointer.y=p.y; pointer.active=true; }, {passive:true});
 
   window.addEventListener('keydown', e=>{
+    if(e.target===pilotInput) return;   // let the name field type freely; it handles Enter itself
     const k=e.key.toLowerCase();
     if(['arrowleft','a'].includes(k)) keys.left=true;
     else if(['arrowright','d'].includes(k)) keys.right=true;
     else if(['arrowup','w'].includes(k)) keys.up=true;
     else if(['arrowdown','s'].includes(k)) keys.down=true;
     if(k===' '||k==='enter'||['arrowleft','arrowright','arrowup','arrowdown'].includes(k)) e.preventDefault();
-    if(k===' '||k==='enter') launch();
+    if((k===' '||k==='enter') && state!=='playing') startGame();
   });
   window.addEventListener('keyup', e=>{
     const k=e.key.toLowerCase();
@@ -309,11 +421,16 @@
     else if(['arrowdown','s'].includes(k)) keys.down=false;
   });
 
-  function launch(){
+  function showStart(){ state='start'; overScreen.classList.add('hide'); startScreen.classList.remove('hide'); }
+  function startGame(){
     initAudio();
     if(actx && actx.state==='suspended') actx.resume();
     if(state==='playing') return;
-    resetGame();
+    const nm = (pilotInput.value||'').trim().replace(/\s+/g,' ').slice(0,16);
+    if(!nm){ showStart(); pilotInput.classList.remove('shake'); void pilotInput.offsetWidth; pilotInput.classList.add('shake'); pilotInput.focus(); return; }
+    currentName = nm; pilotInput.value = nm;
+    try{ localStorage.setItem('vr_name', nm); }catch(e){}
+    resetGame(); submitted=false;
     state='playing';
     startScreen.classList.add('hide');
     overScreen.classList.add('hide');
@@ -419,8 +536,32 @@
     if(score>best){ best=score; beatBest=true; localStorage.setItem('vr_best',String(best)); }
     final.textContent=pad(score);
     newbest.style.visibility = beatBest ? 'visible' : 'hidden';
-    overstats.textContent = 'BEST '+pad(best)+' · TIME '+fmtTime(runTime);
+    overstats.textContent = 'TIME '+fmtTime(runTime)+' · BEST '+pad(best);
     overScreen.classList.remove('hide');
+    if(!submitted){ submitted=true; showLeaderboard(currentName, Math.max(0, Math.floor(score))); }
+  }
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  async function showLeaderboard(name, score){
+    boardmode.textContent='';
+    yourrank.textContent='SUBMITTING SCORE…';
+    brows.innerHTML='<li class="brow loading">SYNCING…</li>';
+    let res=null;
+    try{ res = await LB.submit(name, score); }catch(e){ res=null; }
+    if(state!=='over') return;            // player already started a new run
+    if(!res){ yourrank.textContent=''; brows.innerHTML='<li class="brow loading">LEADERBOARD UNAVAILABLE</li>'; return; }
+    boardmode.textContent = res.mode==='firebase' ? 'GLOBAL' : 'LOCAL';
+    if(!res.top.length){ brows.innerHTML='<li class="brow loading">BE THE FIRST — NO SCORES YET</li>'; }
+    else {
+      brows.innerHTML = res.top.map((r,i)=>
+        '<li class="brow'+(r.id===res.id?' me':'')+'">'+
+          '<span class="brank">'+(i+1)+'</span>'+
+          '<span class="bname">'+esc(r.name)+'</span>'+
+          '<span class="bscore">'+Number(r.score).toLocaleString()+'</span>'+
+        '</li>').join('');
+    }
+    const inTop = res.top.some(r=>r.id===res.id);
+    yourrank.innerHTML = 'YOUR RANK <b>#'+res.rank+'</b>' + (inTop?'':' · SCORE <b>'+Number(score).toLocaleString()+'</b>');
   }
 
   // ---------- boss ----------
@@ -735,7 +876,11 @@
         overstats=document.getElementById('overstats'),
         buffRapid=document.getElementById('buffRapid'), buffSpread=document.getElementById('buffSpread'),
         buffShield=document.getElementById('buffShield'),
-        bossbar=document.getElementById('bossbar'), bossfill=document.getElementById('bossfill');
+        bossbar=document.getElementById('bossbar'), bossfill=document.getElementById('bossfill'),
+        pilotInput=document.getElementById('pilot'), launchBtn=document.getElementById('launchBtn'),
+        againBtn=document.getElementById('againBtn'), changeBtn=document.getElementById('changeBtn'),
+        brows=document.getElementById('brows'), boardmode=document.getElementById('boardmode'),
+        yourrank=document.getElementById('yourrank');
   let prevLives=-1, prevMult=-1, prevScore=-1, prevBest=-1;
   const pad=n=> String(Math.floor(n)).padStart(6,'0');
   const fmtTime=s=>{ const m=Math.floor(s/60), ss=Math.floor(s%60); return m+':'+String(ss).padStart(2,'0'); };
@@ -778,6 +923,15 @@
   player={ x:W*0.5, y:H*0.72, tx:W*0.5, ty:H*0.72, rapidT:0, spreadT:0, shieldT:0, invulnT:0, thr:0 };
   pointer.x=W*0.5; pointer.y=H*0.72;
   bestEl.textContent=pad(best); footBest.textContent=pad(best);
+
+  try{ currentName = localStorage.getItem('vr_name') || ''; }catch(e){ currentName=''; }
+  pilotInput.value = currentName;
+  launchBtn.addEventListener('click', startGame);
+  againBtn.addEventListener('click', startGame);
+  changeBtn.addEventListener('click', ()=>{ showStart(); pilotInput.focus(); pilotInput.select(); });
+  pilotInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); startGame(); } });
+  LB.init();   // begin loading Firebase (falls back to local if unreachable, e.g. Claude preview)
+
   requestAnimationFrame(frame);
 })();
 </script>
