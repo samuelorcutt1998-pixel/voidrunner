@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="VOIDRUNNER">
 <meta property="og:title" content="VOIDRUNNER">
-<meta property="og:description" content="Neon arcade survival shooter — global leaderboard, WARLORD bosses, real-time co-op.">
+<meta property="og:description" content="Neon arcade survival shooter — global leaderboard, 3 boss rounds, real-time co-op.">
 <meta property="og:type" content="website">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -211,6 +211,28 @@
   .crow.dead{ opacity:.42; }
   .crow.dead .cn::after{ content:' \2620'; }
 
+  /* ---- lobby option selectors ---- */
+  .opts{ display:flex; flex-direction:column; gap:9px; align-items:center; }
+  .optgrp{ display:flex; flex-direction:column; gap:5px; align-items:center; }
+  .olabel{ font-size:9px; letter-spacing:.28em; color:var(--dust); }
+  .seg{ display:flex; border:1px solid rgba(124,132,173,.3); border-radius:9px; overflow:hidden; }
+  .seg button{ font-family:var(--mono); font-size:11px; letter-spacing:.08em; color:var(--dust);
+    background:transparent; border:none; padding:8px 13px; cursor:pointer; border-right:1px solid rgba(124,132,173,.18);
+    min-width:34px; transition:background .12s, color .12s; }
+  .seg button:last-child{ border-right:none; }
+  .seg button.sel{ background:var(--plasma); color:var(--void2); font-weight:700; }
+  .seg button:hover:not(.sel){ color:var(--star); }
+
+  /* ---- give-a-life button ---- */
+  .giftbtn{ position:absolute; bottom:44px; left:50%; transform:translateX(-50%); z-index:9; display:none;
+    pointer-events:auto; cursor:pointer; border:1px solid rgba(255,216,77,.5); background:rgba(10,13,28,.62);
+    color:#FFD84D; font-family:var(--mono); font-size:10px; letter-spacing:.16em; padding:7px 14px; border-radius:20px;
+    text-shadow:0 0 10px rgba(255,216,77,.5); }
+  .giftbtn.on{ display:block; }
+  .giftbtn:hover{ background:rgba(255,216,77,.14); }
+  .giftbtn:active{ transform:translateX(-50%) scale(.95); }
+  .giftbtn:focus-visible{ outline:2px solid #FFD84D; outline-offset:2px; }
+
   @media (prefers-reduced-motion: reduce){
     .prompt,.stage.danger::before,.pilot.shake,.countnum{ animation:none; }
   }
@@ -221,6 +243,7 @@
     <canvas id="game"></canvas>
 
     <button class="audio" id="audioBtn" aria-label="Toggle sound">♪ ON</button>
+    <button class="giftbtn" id="giftBtn">♥ GIVE LIFE</button>
 
     <div class="hud">
       <div class="row left">
@@ -231,7 +254,7 @@
         <div style="text-align:right"><div class="label">BEST</div><div class="val best" id="best">000000</div></div>
       </div>
       <div class="combo" id="combo">×2</div>
-      <div class="bossbar" id="bossbar"><div class="bl">◆ WARLORD ◆</div><div class="track"><div class="fill" id="bossfill"></div></div></div>
+      <div class="bossbar" id="bossbar"><div class="bl" id="bossname">◆ WARLORD ◆</div><div class="track"><div class="fill" id="bossfill"></div></div></div>
       <div class="coopboard" id="coopboard"></div>
     </div>
 
@@ -262,7 +285,7 @@
 
     <!-- GAME OVER -->
     <div class="screen go hide" id="overScreen">
-      <h1 class="title mid">GAME OVER</h1>
+      <h1 class="title mid" id="overtitle">GAME OVER</h1>
       <div class="newbest" id="newbest" style="visibility:hidden">◆ NEW PERSONAL BEST ◆</div>
       <div class="finalscore" id="final">000000</div>
       <div class="statline" id="overstats">TIME 0:00 · BEST 000000</div>
@@ -296,10 +319,18 @@
     <div class="screen hide" id="roomScreen">
       <div class="nlabel">ROOM CODE — SHARE IT</div>
       <div class="roomcode" id="roomcode">----</div>
-      <div class="tag" id="roomhint">Anyone in the room can start. You all launch together on the same swarm.</div>
+      <div class="tag" id="roomhint">Anyone can start. You all fly the same swarm — more pilots means more enemies. Beat 3 boss rounds to win.</div>
       <div class="board">
         <div class="bhead"><span>PILOTS IN ROOM</span><span class="bmode" id="roomcount"></span></div>
         <ol class="brows" id="roomlist"></ol>
+      </div>
+      <div class="opts">
+        <div class="optgrp"><span class="olabel">DIFFICULTY</span>
+          <div class="seg" id="diffSeg"><button data-v="easy">EASY</button><button data-v="normal" class="sel">NORMAL</button><button data-v="hard">HARD</button></div>
+        </div>
+        <div class="optgrp"><span class="olabel">STARTING LIVES</span>
+          <div class="seg" id="livesSeg"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3" class="sel">3</button><button data-v="4">4</button><button data-v="5">5</button></div>
+        </div>
       </div>
       <div class="btnrow">
         <button class="btn launch" id="startMatchBtn">START MATCH ▸</button>
@@ -386,6 +417,7 @@
   const sHit    = ()=>{ noise(0.32,0.28); blip(80,0.32,'sawtooth',0.2); };
   const sPower  = ()=>{ if(!actx)return; const t=actx.currentTime; blip(660,0.09,'triangle',0.14,t); blip(990,0.12,'triangle',0.13,t+0.08); };
   function sOver(){ if(!actx)return; const t=actx.currentTime; [440,330,247,165].forEach((f,i)=>blip(f,0.22,'sawtooth',0.13,t+i*0.12)); }
+  function sWin(){ if(!actx)return; const t=actx.currentTime; [523,659,784,1047].forEach((f,i)=>blip(f,0.24,'triangle',0.14,t+i*0.12)); }
 
   // ---------- firebase loader (shared by leaderboard + multiplayer) ----------
   const FIREBASE_CONFIG = {
@@ -449,6 +481,7 @@
   const NET = {
     code:null, pid:null, name:null, isHost:false, seed:0, startAt:0, roomState:'lobby',
     players:{}, offset:0, unsub:[], lastSend:0, killed:new Set(), bossSeen:new Set(),
+    opts:{ diff:'normal', lives:3 },
     _fns(){ return FB.dbMod || {}; },
     now(){ return Date.now() + this.offset; },
     _code(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; },
@@ -494,21 +527,35 @@
       const u2=onValue(ref(FB.rtdb,`rooms/${c}/meta`), s=>{ const m=s.val()||{}; this.roomState=m.state; if(m.startAt) this.startAt=m.startAt; if(m.seed!=null) this.seed=m.seed; if(typeof mpOnMeta==='function') mpOnMeta(m); });
       const u3=onChildAdded(ref(FB.rtdb,`rooms/${c}/kills`), s=>{ this.killed.add(Number(s.key)); });
       const u4=onChildAdded(ref(FB.rtdb,`rooms/${c}/bossDown`), s=>{ if(typeof mpOnBossDown==='function') mpOnBossDown(Number(s.key)); });
-      this.unsub=[u1,u2,u3,u4];
+      const u5=onChildAdded(ref(FB.rtdb,`rooms/${c}/gifts`), s=>{ const v=s.val()||{}; if(typeof mpOnGift==='function') mpOnGift(s.key, v.from); });
+      const u6=onChildAdded(ref(FB.rtdb,`rooms/${c}/claims`), s=>{ if(typeof mpOnClaim==='function') mpOnClaim(s.key); });
+      this.unsub=[u1,u2,u3,u4,u5,u6];
     },
     async startMatch(){
       if(!this.code) return;
       const {ref,update,remove}=this._fns();
-      try{ await remove(ref(FB.rtdb,`rooms/${this.code}/kills`)); await remove(ref(FB.rtdb,`rooms/${this.code}/bossDown`)); }catch(e){}
+      try{ for(const k of ['kills','bossDown','gifts','claims']) await remove(ref(FB.rtdb,`rooms/${this.code}/${k}`)); }catch(e){}
       this.killed=new Set(); this.bossSeen=new Set();
       const seed=Math.floor(Math.random()*2e9);
-      await update(ref(FB.rtdb,`rooms/${this.code}/meta`), { state:'live', seed, startAt:this.now()+3600 });
+      const pcount=Math.max(1, Object.keys(this.players||{}).length);
+      await update(ref(FB.rtdb,`rooms/${this.code}/meta`),
+        { state:'live', seed, startAt:this.now()+3600, diff:this.opts.diff, lives:this.opts.lives, pcount });
     },
+    setOpts(o){ Object.assign(this.opts,o); if(!this.code) return;
+      const {ref,update}=this._fns(); try{ update(ref(FB.rtdb,`rooms/${this.code}/meta`), o); }catch(e){} },
     send(p){ if(!this.code) return; const t=Date.now(); if(t-this.lastSend<80) return; this.lastSend=t;
       const {ref,update}=this._fns(); try{ update(ref(FB.rtdb,`rooms/${this.code}/players/${this.pid}`), p); }catch(e){} },
     reportKill(gi){ if(!this.code||this.killed.has(gi)) return; this.killed.add(gi);
       const {ref,set}=this._fns(); try{ set(ref(FB.rtdb,`rooms/${this.code}/kills/${gi}`), true); }catch(e){} },
     reportBossDown(bi){ if(!this.code) return; const {ref,set}=this._fns(); try{ set(ref(FB.rtdb,`rooms/${this.code}/bossDown/${bi}`), true); }catch(e){} },
+    claim(id){
+      if(!this.code) return Promise.resolve(true);            // solo/offline → you get it
+      const {ref,runTransaction}=this._fns();
+      return runTransaction(ref(FB.rtdb,`rooms/${this.code}/claims/${id}`), cur=> cur===null ? this.pid : cur)
+        .then(res=> !!(res.committed && res.snapshot.val()===this.pid)).catch(()=>false);
+    },
+    announceGift(id){ if(!this.code) return; const {ref,set}=this._fns();
+      try{ set(ref(FB.rtdb,`rooms/${this.code}/gifts/${id}`), { from:this.pid }); }catch(e){} },
     leave(){
       const {ref,remove}=this._fns();
       try{ if(this.code&&ref) remove(ref(FB.rtdb,`rooms/${this.code}/players/${this.pid}`)); }catch(e){}
@@ -529,7 +576,17 @@
   let MODE='solo';                         // 'solo' | 'coop'
   let gi=0, nextSpawnT=0.6, nextBossT=75;  // deterministic spawn/boss schedule
   let ghosts={};                           // interpolated positions of other players' ships
-  const MAX_LIVES=5;
+  let matchDiff='normal', matchStartLives=3, playerScale=1, wonRun=false;
+  let claimedIds=new Set();                // shared pickups already taken by someone
+  const MAX_LIVES=6;
+  const DIFFS={
+    easy:  { label:'EASY',   spawnMul:1.30, speedMul:0.84, hpMul:0.78 },
+    normal:{ label:'NORMAL', spawnMul:1.00, speedMul:1.00, hpMul:1.00 },
+    hard:  { label:'HARD',   spawnMul:0.74, speedMul:1.20, hpMul:1.35 }
+  };
+  const COOP_BOSS_TIMES=[42,102,162];      // co-op: 3 rounds, boss warps in at these shared times
+  const BOSS_NAMES={1:'WARLORD',2:'HYDRA',3:'OVERMIND'};
+  function diffCfg(){ return DIFFS[matchDiff]||DIFFS.normal; }
 
   function makeStars(){
     stars=[];
@@ -547,9 +604,9 @@
 
   function resetGame(){
     bullets=[]; enemies=[]; particles=[]; powerups=[]; floaters=[]; ebullets=[];
-    score=0; lives=3; streak=0; mult=1; elapsed=0; spawnAcc=0; fireCd=0; shake=0; runTime=0; beatBest=false;
+    score=0; lives=matchStartLives; streak=0; mult=1; elapsed=0; spawnAcc=0; fireCd=0; shake=0; runTime=0; beatBest=false;
     bossActive=false; bossRef=null; bossNum=0; nextBossScore=500000;
-    gi=0; nextSpawnT=0.6; nextBossT=75; ghosts={};
+    gi=0; nextSpawnT=0.6; nextBossT=75; ghosts={}; claimedIds=new Set(); wonRun=false;
     bossbar.classList.remove('on'); stage.classList.remove('danger');
     player={ x:W*0.5, y:H*0.72, tx:W*0.5, ty:H*0.72, rapidT:0, spreadT:0, shieldT:0, invulnT:1.0, thr:0 };
     pointer.x=W*0.5; pointer.y=H*0.72;
@@ -595,7 +652,7 @@
     initAudio();
     if(actx && actx.state==='suspended') actx.resume();
     if(state==='playing') return;
-    MODE='solo';
+    MODE='solo'; matchDiff='normal'; matchStartLives=3; playerScale=1;
     const nm=validName();
     if(!nm){ shakeName(); return; }
     currentName=nm; pilotInput.value=nm;
@@ -628,14 +685,15 @@
   function spawnDeterministic(idx, tSpawn, rnd){
     const type=pickTypeR(tSpawn, rnd);
     const ramp=Math.min(tSpawn*0.006, 0.24);
+    const sm=diffCfg().speedMul;                 // difficulty scales fall speed (shared → deterministic)
     const xf=0.12 + rnd()*0.76;                 // fractional x → same relative spot on every screen
     const b={ type, gi:idx, spawnT:tSpawn, x0:xf*W, x:xf*W, age:0, ph:rnd()*TAU };
     if(type==='drone'){
-      enemies.push(Object.assign(b,{ y0:-0.06*H, y:-0.06*H, vy:(0.15+ramp)*H, wf:1.4+rnd()*1.6, amp:(0.05+rnd()*0.08)*W, r:0.027*H, hp:1, mhp:1, color:'#B98BFF' }));
+      enemies.push(Object.assign(b,{ y0:-0.06*H, y:-0.06*H, vy:(0.15+ramp)*sm*H, wf:1.4+rnd()*1.6, amp:(0.05+rnd()*0.08)*W, r:0.027*H, hp:1, mhp:1, color:'#B98BFF' }));
     } else if(type==='darter'){
-      enemies.push(Object.assign(b,{ y0:-0.06*H, y:-0.06*H, vy:(0.28+ramp*1.15)*H, wf:2.2+rnd()*1.5, amp:(0.10+rnd()*0.06)*W, r:0.024*H, hp:1, mhp:1, color:'#FF9E4D' }));
+      enemies.push(Object.assign(b,{ y0:-0.06*H, y:-0.06*H, vy:(0.28+ramp*1.15)*sm*H, wf:2.2+rnd()*1.5, amp:(0.10+rnd()*0.06)*W, r:0.024*H, hp:1, mhp:1, color:'#FF9E4D' }));
     } else {
-      enemies.push(Object.assign(b,{ y0:-0.10*H, y:-0.10*H, vy:(0.10+ramp*0.55)*H, wf:0.5+rnd()*0.7, amp:(0.02+rnd()*0.04)*W, r:0.055*H, hp:3, mhp:3, color:'#7E8CE8', rot:rnd()*TAU, spin:(rnd()-0.5)*3, verts:makeRock() }));
+      enemies.push(Object.assign(b,{ y0:-0.10*H, y:-0.10*H, vy:(0.10+ramp*0.55)*sm*H, wf:0.5+rnd()*0.7, amp:(0.02+rnd()*0.04)*W, r:0.055*H, hp:3, mhp:3, color:'#7E8CE8', rot:rnd()*TAU, spin:(rnd()-0.5)*3, verts:makeRock() }));
     }
   }
 
@@ -646,6 +704,13 @@
       bullets.push({ x:player.x, y:player.y-0.03*H, vx:Math.sin(a)*sp, vy:-Math.cos(a)*sp, r:0.009*H });
     }
     sShoot();
+  }
+  // compact flat [x0,y0,x1,y1,...] snapshot of my bullets (fractional) for teammates to render
+  function bulletSnap(){
+    const n=Math.min(bullets.length,16), a=[];
+    for(let i=bullets.length-n;i<bullets.length;i++){ const b=bullets[i];
+      a.push(Math.round(b.x/W*1000)/1000, Math.round(b.y/H*1000)/1000); }
+    return a;
   }
 
   // ---------- effects ----------
@@ -695,9 +760,13 @@
     explode(player.x,player.y,'#FF4D6D',30); addShake(15); sHit();
     if(lives<=0) gameOver();
   }
-  function gameOver(){
-    setState('over'); runTime=elapsed; sOver();
+  function gameOver(){ finishRun(false); }
+  function winRun(){ if(state==='playing') finishRun(true); }
+  function finishRun(won){
+    wonRun=won; setState('over'); runTime=elapsed; won ? sWin() : sOver();
     if(score>best){ best=score; beatBest=true; localStorage.setItem('vr_best',String(best)); }
+    overtitle.textContent = won ? 'VICTORY!' : 'GAME OVER';
+    overtitle.style.color = won ? 'var(--mint)' : '';
     final.textContent=pad(score);
     newbest.style.visibility = beatBest ? 'visible' : 'hidden';
     overstats.textContent = 'TIME '+fmtTime(runTime)+' · BEST '+pad(best);
@@ -713,8 +782,15 @@
   // ---------- multiplayer callbacks (invoked by NET listeners) ----------
   function mpOnMeta(m){
     if(!m) return;
+    // reflect lobby settings live for everyone in the room
+    if(m.diff && DIFFS[m.diff]){ NET.opts.diff=m.diff; if(typeof diffSeg!=='undefined' && diffSeg) segPick(diffSeg, m.diff); }
+    if(m.lives){ NET.opts.lives=+m.lives; if(typeof livesSeg!=='undefined' && livesSeg) segPick(livesSeg, m.lives); }
     if(m.state==='live' && (state==='room' || state==='lobby' || state==='over')){
       MODE='coop'; currentName=NET.name||currentName;
+      matchDiff = (m.diff && DIFFS[m.diff]) ? m.diff : 'normal';
+      matchStartLives = Math.max(1, Math.min(6, +m.lives||3));
+      playerScale = Math.max(1, +m.pcount || Object.keys(NET.players||{}).length || 1);
+      NET.killed=new Set(); NET.bossSeen=new Set();          // fresh for the new match on every client
       resetGame(); submitted=false; elapsed=0;
       setState('count');
     }
@@ -729,6 +805,7 @@
         : '<li class="brow loading">WAITING FOR PILOTS…</li>';
     }
   }
+  function segPick(seg, v){ if(!seg) return; for(const b of seg.children) b.classList.toggle('sel', b.dataset.v===String(v)); }
   async function doJoin(){
     const nm=currentName||validName(); if(!nm){ shakeName(); return; }
     initAudio(); if(actx && actx.state==='suspended') actx.resume();
@@ -764,14 +841,19 @@
   }
 
   // ---------- boss ----------
-  function spawnBoss(){
+  function spawnBoss(kind){
     bossActive=true; bossNum++; nextBossScore+=500000;
-    const hp=50+(bossNum-1)*30;
+    kind = kind || ((bossNum-1)%3)+1;
+    const baseHp = kind===3?120 : kind===2?85 : 55;
+    const hp = Math.round(baseHp * diffCfg().hpMul * (1 + 0.35*(playerScale-1)));
     const brng = (MODE==='coop') ? mulberry32((NET.seed ^ Math.imul(bossNum,40503)) >>> 0) : Math.random;
-    const b={ type:'boss', x:W*0.5, y:-0.22*H, ty:0.17*H, r:0.11*H, hp, mhp:hp, vy:0,
-      spawnT:elapsed, age:0, phase:'enter', fireT:1.6, flash:0, sweepPh:brng()*TAU, ringRot:0, color:'#FF5A2E' };
+    const b={ type:'boss', kind, x:W*0.5, y:-0.22*H, ty:0.17*H, r:0.11*H, hp, mhp:hp, vy:0,
+      spawnT:elapsed, age:0, phase:'enter', fireT:1.6, flash:0, sweepPh:brng()*TAU, ringRot:0,
+      color: kind===3?'#43E0FF' : kind===2?'#A24BFF' : '#FF5A2E' };
     enemies.push(b); bossRef=b;
-    addFloater(W*0.5,H*0.30,'WARLORD APPROACHES','#FF7A54'); addShake(10);
+    const nm=BOSS_NAMES[kind]||'WARLORD';
+    if(bossname) bossname.textContent='◆ '+nm+' ◆';
+    addFloater(W*0.5,H*0.30, nm+' APPROACHES','#FF7A54'); addShake(10);
     blip(70,0.6,'sawtooth',0.16);
   }
   function updateBoss(e,dt){
@@ -784,38 +866,69 @@
       e.y = e.ty + Math.sin(e.age*1.2)*0.015*H;
       e.x = W*0.5 + Math.sin(e.age*0.7+e.sweepPh)*0.30*W;
       e.fireT -= dt;
-      if(e.fireT<=0){ e.fireT=Math.max(0.62,1.35-bossNum*0.12); bossFire(e); e.flash=0.18; }
+      if(e.fireT<=0){ e.fireT = e.kind===3?0.9 : e.kind===2?1.05 : 1.25; bossFire(e); e.flash=0.18; }
     }
   }
   function bossFire(e){
-    const n=3+Math.min(bossNum-1,3), spread=0.62, base=Math.PI/2, sp=0.34*H;
-    for(let i=0;i<n;i++){ const a=base+(n===1?0:(i/(n-1)-0.5))*spread;
-      ebullets.push({x:e.x,y:e.y+e.r*0.5,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:0.011*H,color:'#FF7A3C'}); }
-    const ang=Math.atan2(player.y-e.y,player.x-e.x);
-    ebullets.push({x:e.x,y:e.y+e.r*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,r:0.012*H,color:'#FF3B6B'});
+    const sp=0.34*H, base=Math.PI/2;
+    const aim=()=>Math.atan2(player.y-e.y, player.x-e.x);
+    if(e.kind===3){                                   // OVERMIND: radial ring + fast aimed
+      const n=12; for(let i=0;i<n;i++){ const a=i/n*TAU;
+        ebullets.push({x:e.x,y:e.y,vx:Math.cos(a)*sp*0.82,vy:Math.sin(a)*sp*0.82,r:0.011*H,color:'#7EF0FF'}); }
+      const ang=aim(); ebullets.push({x:e.x,y:e.y,vx:Math.cos(ang)*sp*1.15,vy:Math.sin(ang)*sp*1.15,r:0.013*H,color:'#FF3B6B'});
+    } else if(e.kind===2){                             // HYDRA: wide fan + twin aimed
+      const n=6, spread=1.15; for(let i=0;i<n;i++){ const a=base+(i/(n-1)-0.5)*spread;
+        ebullets.push({x:e.x,y:e.y+e.r*0.5,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:0.011*H,color:'#C46BFF'}); }
+      for(const off of [-0.12,0.12]){ const ang=aim()+off;
+        ebullets.push({x:e.x,y:e.y+e.r*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,r:0.012*H,color:'#FF3B6B'}); }
+    } else {                                           // WARLORD: fan + aimed
+      const n=4, spread=0.62; for(let i=0;i<n;i++){ const a=base+(i/(n-1)-0.5)*spread;
+        ebullets.push({x:e.x,y:e.y+e.r*0.5,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:0.011*H,color:'#FF7A3C'}); }
+      const ang=aim(); ebullets.push({x:e.x,y:e.y+e.r*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,r:0.012*H,color:'#FF3B6B'});
+    }
     blip(150,0.12,'sawtooth',0.06);
+  }
+  function spawnSharedLife(id, x, y, excludePid){
+    if(claimedIds.has(id) || powerups.some(p=>p.id===id)) return;
+    powerups.push({ shared:true, id, excludePid:excludePid||null, type:'life', x, y, r:0.038*H, age:0, color:'#FFD84D', vy:0.09*H });
+    addFloater(x, y-0.05*H, excludePid?'INCOMING LIFE':'LIFE DROP', '#FFD84D');
   }
   function bossDefeated(e){
     const pts=10000*bossNum; score+=pts;
     addFloater(e.x,e.y,'BOSS DOWN  +'+pts,'#FFD84D');
-    explode(e.x,e.y,'#FF5A2E',60); explode(e.x,e.y,'#FFD84D',28);
+    explode(e.x,e.y,e.color||'#FF5A2E',60); explode(e.x,e.y,'#FFD84D',28);
     addShake(18); sExpl(); sExpl();
-    powerups.push({x:e.x,y:e.y,type:'life',r:0.034*H,age:0,color:'#FFD84D'});
-    ebullets=[]; bossActive=false; bossRef=null;
-    bossbar.classList.remove('on');
-    if(MODE==='coop'){ NET.bossSeen.add(bossNum); NET.reportBossDown(bossNum); }
+    ebullets=[]; bossActive=false; bossRef=null; bossbar.classList.remove('on');
+    if(MODE==='coop'){
+      NET.bossSeen.add(bossNum); NET.reportBossDown(bossNum);
+      spawnSharedLife('bl'+bossNum, W*0.5, 0.30*H, null);   // ONE shared life for the whole team
+      if(e.kind===3) winRun();
+    } else {
+      powerups.push({x:e.x,y:e.y,type:'life',r:0.034*H,age:0,color:'#FFD84D'});
+    }
   }
-  // a teammate downed the boss → clear it here too and grant the life drop
+  // a teammate downed the boss → clear it here too, drop the single shared life
   function mpOnBossDown(bi){
     if(MODE!=='coop' || NET.bossSeen.has(bi)) return;
     NET.bossSeen.add(bi);
     if(bossActive && bossRef){
       const e=bossRef, idx=enemies.indexOf(e);
-      explode(e.x,e.y,'#FF5A2E',40); addShake(12); sExpl();
-      powerups.push({x:e.x,y:e.y,type:'life',r:0.034*H,age:0,color:'#FFD84D'});
+      explode(e.x,e.y,e.color||'#FF5A2E',40); addShake(12); sExpl();
       if(idx>=0) enemies.splice(idx,1);
       ebullets=[]; bossActive=false; bossRef=null; bossbar.classList.remove('on');
     }
+    spawnSharedLife('bl'+bi, W*0.5, 0.30*H, null);
+    if(bi>=3) winRun();
+  }
+  function mpOnGift(id, from){ if(MODE==='coop') spawnSharedLife(id, W*0.5, -0.02*H, from); }
+  function mpOnClaim(id){ claimedIds.add(id); for(let i=powerups.length-1;i>=0;i--){ if(powerups[i].id===id) powerups.splice(i,1); } }
+  function giveLife(){
+    if(MODE!=='coop' || state!=='playing' || lives<2) return;
+    const others=Object.keys(NET.players||{}).filter(pid=>pid!==NET.pid && NET.players[pid] && NET.players[pid].alive!==false);
+    if(!others.length) return;
+    lives--;
+    NET.announceGift('g'+NET.pid+Date.now().toString(36));
+    addFloater(player.x, player.y-0.05*H, 'GAVE A LIFE','#FFD84D'); sPower();
   }
 
   // ---------- update ----------
@@ -864,11 +977,11 @@
     for(let i=bullets.length-1;i>=0;i--){ const b=bullets[i]; b.x+=b.vx*dt; b.y+=b.vy*dt;
       if(b.y<-20||b.x<-20||b.x>W+20) bullets.splice(i,1); }
 
-    // ---- boss trigger (score-based solo, shared timer in co-op) ----
+    // ---- boss trigger (3 timed rounds in co-op, every 500k in solo) ----
     if(MODE==='coop'){
-      if(!bossActive && elapsed>=nextBossT){ spawnBoss(); nextBossT+=75; }
+      if(!bossActive && bossNum<3 && elapsed>=COOP_BOSS_TIMES[bossNum]) spawnBoss(bossNum+1);
     } else {
-      if(!bossActive && score>=nextBossScore) spawnBoss();
+      if(!bossActive && score>=nextBossScore) spawnBoss((bossNum%3)+1);
     }
 
     // ---- enemy spawns (deterministic schedule; solo pauses during boss) ----
@@ -879,7 +992,8 @@
         const rnd = (MODE==='coop') ? spawnRng(NET.seed, gi) : Math.random;
         spawnDeterministic(gi, nextSpawnT, rnd);
         gi++;
-        nextSpawnT += clamp(1.0-nextSpawnT*0.013, 0.30, 1.0);
+        const base=clamp(1.0-nextSpawnT*0.013, 0.30, 1.0);
+        nextSpawnT += Math.max(0.12, base * diffCfg().spawnMul / playerScale);  // more players → more enemies
       }
     }
 
@@ -935,14 +1049,24 @@
 
     // ---- powerups ----
     for(let i=powerups.length-1;i>=0;i--){ const p=powerups[i]; p.age+=dt;
-      p.y+=0.13*H*dt; p.x+=Math.sin(p.age*3)*0.02*W*dt;
+      const fall = (p.vy!=null ? p.vy : 0.13*H);
+      p.y+=fall*dt; p.x+=Math.sin(p.age*3)*0.02*W*dt;
       const dx=player.x-p.x, dy=player.y-p.y, rr=(0.012*H+p.r+0.02*H);
-      if(dx*dx+dy*dy<rr*rr){ applyPower(p.type); explode(p.x,p.y,p.color,10); powerups.splice(i,1); continue; }
+      if(dx*dx+dy*dy<rr*rr){
+        if(p.shared){
+          if(p.excludePid && p.excludePid===NET.pid){ /* my own gift — I can't grab it */ }
+          else {
+            const id=p.id; powerups.splice(i,1); claimedIds.add(id); explode(p.x,p.y,p.color,10);
+            NET.claim(id).then(won=>{ if(won) applyPower('life'); });   // exactly one player wins it
+            continue;
+          }
+        } else { applyPower(p.type); explode(p.x,p.y,p.color,10); powerups.splice(i,1); continue; }
+      }
       if(p.y>H+p.r*2) powerups.splice(i,1);
     }
 
-    // broadcast my ship to the room (throttled ~12Hz inside send)
-    if(MODE==='coop') NET.send({ x:player.x/W, y:player.y/H, score, lives, alive:true });
+    // broadcast my ship + bullets to the room (throttled ~12Hz inside send)
+    if(MODE==='coop') NET.send({ x:player.x/W, y:player.y/H, score, lives, alive:true, b:bulletSnap() });
 
     // danger vignette at 1 life
     stage.classList.toggle('danger', lives===1);
@@ -1031,25 +1155,30 @@
     ctx.restore();
   }
 
+  const BK={
+    1:{sides:6, cA:'#FF8A4B', cB:'#B71F38', ring:'rgba(255,90,46,.45)', node:'#FF7A3C', core:'#FFD84D', pupil:'#6e0f1c'},
+    2:{sides:8, cA:'#CE9BFF', cB:'#5B1F9B', ring:'rgba(180,107,255,.45)', node:'#C46BFF', core:'#E8B3FF', pupil:'#2c0a52'},
+    3:{sides:3, cA:'#8FF3FF', cB:'#0E5F84', ring:'rgba(126,240,255,.5)',  node:'#7EF0FF', core:'#FFFFFF', pupil:'#08303f'}
+  };
   function drawBoss(e){
-    const r=e.r;
+    const r=e.r, k=BK[e.kind]||BK[1], sides=k.sides;
     ctx.save(); ctx.rotate(e.ringRot);
-    ctx.strokeStyle='rgba(255,90,46,.45)'; ctx.lineWidth=2;
+    ctx.strokeStyle=k.ring; ctx.lineWidth=2;
     ctx.beginPath(); ctx.arc(0,0,r*1.28,0,TAU); ctx.stroke();
-    for(let k=0;k<6;k++){ const a=k/6*TAU; ctx.fillStyle='#FF7A3C';
+    for(let i=0;i<6;i++){ const a=i/6*TAU; ctx.fillStyle=k.node;
       ctx.beginPath(); ctx.arc(Math.cos(a)*r*1.28,Math.sin(a)*r*1.28,r*0.11,0,TAU); ctx.fill(); }
     ctx.restore();
     ctx.shadowColor=e.color; ctx.shadowBlur=22;
-    const g=ctx.createLinearGradient(0,-r,0,r); g.addColorStop(0,'#FF8A4B'); g.addColorStop(1,'#B71F38');
+    const g=ctx.createLinearGradient(0,-r,0,r); g.addColorStop(0,k.cA); g.addColorStop(1,k.cB);
     ctx.fillStyle=g; ctx.beginPath();
-    for(let k=0;k<6;k++){ const a=-Math.PI/2+k/6*TAU, x=Math.cos(a)*r, y=Math.sin(a)*r; k?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    for(let i=0;i<sides;i++){ const a=-Math.PI/2+i/sides*TAU, x=Math.cos(a)*r, y=Math.sin(a)*r; i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
     ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
     ctx.strokeStyle='rgba(10,13,28,.55)'; ctx.lineWidth=2; ctx.stroke();
     const fl=e.flash>0;
-    ctx.shadowColor='#FFD84D'; ctx.shadowBlur=fl?26:14;
-    ctx.fillStyle=fl?'#FFF0C0':'#FFD84D';
+    ctx.shadowColor=k.core; ctx.shadowBlur=fl?26:14;
+    ctx.fillStyle=fl?'#FFFFFF':k.core;
     ctx.beginPath(); ctx.arc(0,0,r*0.34*(fl?1.15:1),0,TAU); ctx.fill();
-    ctx.shadowBlur=0; ctx.fillStyle='#6e0f1c';
+    ctx.shadowBlur=0; ctx.fillStyle=k.pupil;
     ctx.beginPath(); ctx.arc(0,0,r*0.14,0,TAU); ctx.fill();
   }
   function hueFor(pid){ let h=0; for(let i=0;i<pid.length;i++) h=(h*31+pid.charCodeAt(i))>>>0; return h%360; }
@@ -1068,10 +1197,15 @@
     for(const pid in P){
       if(pid===NET.pid) continue;
       const p=P[pid]; if(!p) continue;
+      const hue=hueFor(pid), col='hsl('+hue+',85%,68%)';
+      // their bullets (tracer dots in their color)
+      if(p.b && p.b.length){ ctx.save(); ctx.globalAlpha=0.55; ctx.shadowColor=col; ctx.shadowBlur=6; ctx.fillStyle=col;
+        for(let k=0;k+1<p.b.length;k+=2){ ctx.beginPath(); ctx.arc(p.b[k]*W,p.b[k+1]*H,2.4,0,TAU); ctx.fill(); }
+        ctx.restore(); }
       const tx=(p.x==null?0.5:p.x)*W, ty=(p.y==null?0.7:p.y)*H;
       let g=ghosts[pid];
       if(!g){ g=ghosts[pid]={x:tx,y:ty}; } else { g.x+=(tx-g.x)*0.28; g.y+=(ty-g.y)*0.28; }
-      drawGhostShip(g.x,g.y,p.name||'',p.alive!==false,hueFor(pid));
+      drawGhostShip(g.x,g.y,p.name||'',p.alive!==false,hue);
     }
     for(const pid in ghosts){ if(!(pid in P)) delete ghosts[pid]; }
   }
@@ -1143,7 +1277,10 @@
         mpBackBtn=document.getElementById('mpBackBtn'), mpmsg=document.getElementById('mpmsg'),
         startMatchBtn=document.getElementById('startMatchBtn'), leaveRoomBtn=document.getElementById('leaveRoomBtn'),
         roomcode=document.getElementById('roomcode'), roomcount=document.getElementById('roomcount'),
-        roomlist=document.getElementById('roomlist'), countnum=document.getElementById('countnum');
+        roomlist=document.getElementById('roomlist'), countnum=document.getElementById('countnum'),
+        bossname=document.getElementById('bossname'), overtitle=document.getElementById('overtitle'),
+        giftBtn=document.getElementById('giftBtn'), diffSeg=document.getElementById('diffSeg'),
+        livesSeg=document.getElementById('livesSeg');
   let prevLives=-1, prevMult=-1, prevScore=-1, prevBest=-1, lastCoopSig='';
   const pad=n=> String(Math.floor(n)).padStart(6,'0');
   const fmtTime=s=>{ const m=Math.floor(s/60), ss=Math.floor(s%60); return m+':'+String(ss).padStart(2,'0'); };
@@ -1186,6 +1323,10 @@
       }
     } else { coopboard.classList.remove('on'); lastCoopSig=''; }
 
+    // give-a-life button (co-op, have a spare, teammates present)
+    const canGift = MODE==='coop' && state==='playing' && lives>=2 && Object.keys(NET.players||{}).length>1;
+    giftBtn.classList.toggle('on', canGift);
+
     // countdown number
     if(state==='count'){ const left=(NET.startAt-NET.now())/1000; countnum.textContent = left>0.25 ? String(Math.max(1,Math.ceil(left))) : 'GO'; }
   }
@@ -1223,6 +1364,10 @@
   joinCode.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); doJoin(); } });
   startMatchBtn.addEventListener('click', ()=>{ initAudio(); if(actx && actx.state==='suspended') actx.resume(); NET.startMatch(); });
   leaveRoomBtn.addEventListener('click', ()=>{ NET.leave(); MODE='solo'; setState('start'); });
+  diffSeg.addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return; segPick(diffSeg,b.dataset.v); NET.setOpts({diff:b.dataset.v}); });
+  livesSeg.addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return; segPick(livesSeg,b.dataset.v); NET.setOpts({lives:+b.dataset.v}); });
+  giftBtn.addEventListener('pointerdown', e=>e.stopPropagation());
+  giftBtn.addEventListener('click', e=>{ e.stopPropagation(); giveLife(); });
   againBtn.addEventListener('click', ()=>{ if(MODE==='coop'){ setState('room'); } else { MODE='solo'; startGame(); } });
   changeBtn.addEventListener('click', ()=>{ if(MODE==='coop'){ NET.leave(); MODE='solo'; setState('start'); } else { showStart(); pilotInput.focus(); pilotInput.select(); } });
   pilotInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); MODE='solo'; startGame(); } });
