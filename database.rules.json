@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        "players": {
+          "$pid": {
+            "name": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+            },
+            "score": { ".validate": "!newData.exists() || newData.isNumber()" }
+          }
+        }
+      }
+    }
+  }
+}

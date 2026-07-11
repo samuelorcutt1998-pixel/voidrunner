@@ -3,11 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="VOIDRUNNER — a neon arcade survival shooter with a global leaderboard. Weave the swarm, fight bosses, chase a high score.">
+<meta name="description" content="VOIDRUNNER — a neon arcade survival shooter with a global leaderboard and real-time co-op.">
 <meta name="theme-color" content="#0A0D1C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VOIDRUNNER">
 <meta property="og:title" content="VOIDRUNNER">
-<meta property="og:description" content="A neon arcade survival shooter with a global leaderboard. Fight WARLORD bosses and climb the ranks.">
+<meta property="og:description" content="Neon arcade survival shooter — global leaderboard, WARLORD bosses, real-time co-op.">
 <meta property="og:type" content="website">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<title>VOIDRUNNER</title>
 <style>html,body{height:100%}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent}</style>
 <title>VOIDRUNNER</title>
 <style>
@@ -20,11 +28,13 @@
   }
   *{ box-sizing:border-box; }
   body{
-    margin:0; min-height:100vh; background:
+    margin:0; min-height:100vh; min-height:100dvh; background:
       radial-gradient(120% 90% at 50% -10%, #14183a 0%, var(--void) 46%, var(--void2) 100%);
     color:var(--star); font-family:var(--mono);
     display:flex; align-items:center; justify-content:center;
-    padding:16px; overflow:hidden; user-select:none; -webkit-user-select:none;
+    padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
+            calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+    overflow:hidden; user-select:none; -webkit-user-select:none;
   }
   .wrap{ display:flex; flex-direction:column; align-items:center; gap:14px; }
 
@@ -176,8 +186,33 @@
   .brow.me .bname, .brow.me .bscore{ color:#FFC7D2; }
   .brow.loading{ display:block; text-align:center; color:var(--dust); font-size:11px; letter-spacing:.2em; padding:16px 0; }
 
+  /* ---- multiplayer menu / room / countdown ---- */
+  .or{ font-size:10px; letter-spacing:.3em; color:var(--dust); }
+  .joinrow{ display:flex; gap:8px; align-items:center; justify-content:center; }
+  .pilot.code{ width:min(46vw,150px); letter-spacing:.35em; }
+  .joinrow .btn{ padding:12px 18px; }
+  .mpmsg{ min-height:14px; font-size:10px; letter-spacing:.16em; color:var(--rose); }
+  .roomcode{ font-family:var(--mono); font-weight:700; font-size:clamp(40px,13vw,64px); letter-spacing:.22em;
+    color:var(--plasma); text-shadow:0 0 24px rgba(67,225,255,.55); line-height:1; }
+  .countnum{ font-family:var(--mono); font-weight:700; font-size:clamp(70px,24vw,130px); line-height:1; color:var(--star);
+    text-shadow:0 0 3px var(--rose), 0 0 34px rgba(255,77,109,.7); animation:countPulse .9s ease-out infinite; }
+  @keyframes countPulse{ 0%{transform:scale(1.25);opacity:.4;} 40%{transform:scale(1);opacity:1;} 100%{transform:scale(1);opacity:1;} }
+
+  /* ---- live co-op scoreboard (during play) ---- */
+  .coopboard{ position:absolute; top:60px; right:14px; z-index:8; display:none; flex-direction:column; gap:3px;
+    align-items:flex-end; max-width:46%; pointer-events:none; }
+  .coopboard.on{ display:flex; }
+  .crow{ display:flex; gap:8px; align-items:baseline; justify-content:flex-end; font-size:11px;
+    background:rgba(10,13,28,.5); border-radius:6px; padding:2px 7px; }
+  .crow .cn{ text-transform:uppercase; letter-spacing:.04em; color:var(--dust); white-space:nowrap; overflow:hidden;
+    text-overflow:ellipsis; max-width:11ch; }
+  .crow .cs{ font-variant-numeric:tabular-nums; color:var(--star); font-weight:700; }
+  .crow.me .cn{ color:var(--plasma); }
+  .crow.dead{ opacity:.42; }
+  .crow.dead .cn::after{ content:' \2620'; }
+
   @media (prefers-reduced-motion: reduce){
-    .prompt,.stage.danger::before,.pilot.shake{ animation:none; }
+    .prompt,.stage.danger::before,.pilot.shake,.countnum{ animation:none; }
   }
 </style>
 
@@ -197,6 +232,7 @@
       </div>
       <div class="combo" id="combo">×2</div>
       <div class="bossbar" id="bossbar"><div class="bl">◆ WARLORD ◆</div><div class="track"><div class="fill" id="bossfill"></div></div></div>
+      <div class="coopboard" id="coopboard"></div>
     </div>
 
     <div class="buffs">
@@ -218,7 +254,10 @@
         <input id="pilot" class="pilot" maxlength="16" placeholder="CALLSIGN"
                autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go" />
       </div>
-      <button class="btn launch" id="launchBtn">LAUNCH ▸</button>
+      <div class="btnrow">
+        <button class="btn launch" id="soloBtn">PLAY SOLO ▸</button>
+        <button class="btn ghost" id="mpBtn">MULTIPLAYER</button>
+      </div>
     </div>
 
     <!-- GAME OVER -->
@@ -236,6 +275,42 @@
         <button class="btn" id="againBtn">PLAY AGAIN ▸</button>
         <button class="btn ghost" id="changeBtn">CHANGE PILOT</button>
       </div>
+    </div>
+
+    <!-- MULTIPLAYER MENU -->
+    <div class="screen hide" id="lobbyScreen">
+      <h1 class="title mid">CO-OP</h1>
+      <p class="tag">Fly the same swarm together in real time. Make a room and share the code — or join a friend's.</p>
+      <button class="btn launch" id="createBtn">CREATE ROOM ▸</button>
+      <div class="or">OR</div>
+      <div class="joinrow">
+        <input id="joinCode" class="pilot code" maxlength="4" placeholder="CODE"
+               autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go" />
+        <button class="btn" id="joinBtn">JOIN</button>
+      </div>
+      <div class="mpmsg" id="mpmsg"></div>
+      <button class="btn ghost" id="mpBackBtn">◂ BACK</button>
+    </div>
+
+    <!-- ROOM -->
+    <div class="screen hide" id="roomScreen">
+      <div class="nlabel">ROOM CODE — SHARE IT</div>
+      <div class="roomcode" id="roomcode">----</div>
+      <div class="tag" id="roomhint">Anyone in the room can start. You all launch together on the same swarm.</div>
+      <div class="board">
+        <div class="bhead"><span>PILOTS IN ROOM</span><span class="bmode" id="roomcount"></span></div>
+        <ol class="brows" id="roomlist"></ol>
+      </div>
+      <div class="btnrow">
+        <button class="btn launch" id="startMatchBtn">START MATCH ▸</button>
+        <button class="btn ghost" id="leaveRoomBtn">◂ LEAVE</button>
+      </div>
+    </div>
+
+    <!-- COUNTDOWN -->
+    <div class="screen hide" id="countScreen">
+      <div class="countnum" id="countnum">3</div>
+      <div class="tag">GET READY, PILOT</div>
     </div>
   </div>
 
@@ -312,39 +387,47 @@
   const sPower  = ()=>{ if(!actx)return; const t=actx.currentTime; blip(660,0.09,'triangle',0.14,t); blip(990,0.12,'triangle',0.13,t+0.08); };
   function sOver(){ if(!actx)return; const t=actx.currentTime; [440,330,247,165].forEach((f,i)=>blip(f,0.22,'sawtooth',0.13,t+i*0.12)); }
 
-  // ---------- leaderboard (Firestore global, localStorage fallback) ----------
+  // ---------- firebase loader (shared by leaderboard + multiplayer) ----------
   const FIREBASE_CONFIG = {
     apiKey: "AIzaSyDKlF8ae9J7Dw8lUZoH4XevyZsi7oDtT6g",
     authDomain: "voidrunner-arcade.firebaseapp.com",
+    databaseURL: "https://voidrunner-arcade-default-rtdb.firebaseio.com",
     projectId: "voidrunner-arcade",
     storageBucket: "voidrunner-arcade.firebasestorage.app",
     messagingSenderId: "593551568800",
     appId: "1:593551568800:web:34dc3709ad5e89f9d3bec5"
   };
   const FB_VER = "10.14.1";
-  const LB = {
-    mode:'init', db:null, fx:null, _p:null,
+  const FB = {
+    mode:'init', app:null, fs:null, fsdb:null, dbMod:null, rtdb:null, _p:null,
     init(){
       if(this._p) return this._p;
       this._p = (async ()=>{
         try{
           const appMod = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-app.js`);
-          const fs = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-firestore.js`);
-          this.db = fs.getFirestore(appMod.initializeApp(FIREBASE_CONFIG));
-          this.fx = fs; this.mode = 'firebase';
+          const fsMod  = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-firestore.js`);
+          const dbMod  = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-database.js`);
+          this.app = appMod.initializeApp(FIREBASE_CONFIG);
+          this.fs = fsMod; this.fsdb = fsMod.getFirestore(this.app);
+          this.dbMod = dbMod; this.rtdb = dbMod.getDatabase(this.app);
+          this.mode = 'firebase';
         }catch(e){ this.mode = 'local'; }
         return this.mode;
       })();
       return this._p;
-    },
+    }
+  };
+
+  // ---------- leaderboard (Firestore global, localStorage fallback) ----------
+  const LB = {
     _all(){ try{ return JSON.parse(localStorage.getItem('vr_board')||'[]'); }catch(e){ return []; } },
     _save(a){ try{ localStorage.setItem('vr_board', JSON.stringify(a.slice(0,100))); }catch(e){} },
     async submit(name, score){
-      if(this.mode==='init') await this.init();
-      if(this.mode==='firebase'){
+      if(FB.mode==='init') await FB.init();
+      if(FB.mode==='firebase'){
         try{
-          const { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs, where, getCountFromServer } = this.fx;
-          const col = collection(this.db,'leaderboard');
+          const { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs, where, getCountFromServer } = FB.fs;
+          const col = collection(FB.fsdb,'leaderboard');
           const ref = await addDoc(col, { name, score, created: serverTimestamp() });
           const snap = await getDocs(query(col, orderBy('score','desc'), limit(10)));
           const top = snap.docs.map(d=>({ id:d.id, name:d.data().name, score:d.data().score }));
@@ -362,6 +445,78 @@
     }
   };
 
+  // ---------- multiplayer (Realtime Database co-op rooms) ----------
+  const NET = {
+    code:null, pid:null, name:null, isHost:false, seed:0, startAt:0, roomState:'lobby',
+    players:{}, offset:0, unsub:[], lastSend:0, killed:new Set(), bossSeen:new Set(),
+    _fns(){ return FB.dbMod || {}; },
+    now(){ return Date.now() + this.offset; },
+    _code(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; },
+    _pid(){ return 'P'+Date.now().toString(36)+Math.floor(Math.random()*46656).toString(36); },
+    async ready(){ if(FB.mode==='init') await FB.init(); return FB.mode==='firebase'; },
+    _watchClock(){ const {ref,onValue}=this._fns(); onValue(ref(FB.rtdb,'.info/serverTimeOffset'), s=>{ this.offset=s.val()||0; }); },
+    async createRoom(name){
+      if(!await this.ready()) return { err:'offline' };
+      this.name=name; this.pid=this._pid(); this.code=this._code(); this.isHost=true;
+      this.seed=Math.floor(Math.random()*2e9); this.killed=new Set(); this.bossSeen=new Set();
+      const {ref,set}=this._fns();
+      this._watchClock();
+      await set(ref(FB.rtdb,`rooms/${this.code}/meta`), { host:this.pid, seed:this.seed, state:'lobby', createdAt:Date.now() });
+      await this._enter(name);
+      this._listen();
+      return { code:this.code };
+    },
+    async joinRoom(code, name){
+      if(!await this.ready()) return { err:'offline' };
+      code=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+      if(!code) return { err:'badcode' };
+      const {ref,get}=this._fns();
+      const snap = await get(ref(FB.rtdb,`rooms/${code}/meta`));
+      if(!snap.exists()) return { err:'notfound' };
+      const m=snap.val();
+      this.name=name; this.code=code; this.isHost=false; this.pid=this._pid();
+      this.seed=m.seed||0; this.roomState=m.state||'lobby'; this.startAt=m.startAt||0;
+      this.killed=new Set(); this.bossSeen=new Set();
+      this._watchClock();
+      await this._enter(name);
+      this._listen();
+      return { code:this.code };
+    },
+    async _enter(name){
+      const {ref,set,onDisconnect}=this._fns();
+      const pr=ref(FB.rtdb,`rooms/${this.code}/players/${this.pid}`);
+      await set(pr, { name, x:0.5, y:0.72, score:0, lives:3, alive:true, joined:Date.now() });
+      try{ onDisconnect(pr).remove(); }catch(e){}
+    },
+    _listen(){
+      const {ref,onValue,onChildAdded}=this._fns(); const c=this.code;
+      const u1=onValue(ref(FB.rtdb,`rooms/${c}/players`), s=>{ this.players=s.val()||{}; if(typeof mpOnPlayers==='function') mpOnPlayers(); });
+      const u2=onValue(ref(FB.rtdb,`rooms/${c}/meta`), s=>{ const m=s.val()||{}; this.roomState=m.state; if(m.startAt) this.startAt=m.startAt; if(m.seed!=null) this.seed=m.seed; if(typeof mpOnMeta==='function') mpOnMeta(m); });
+      const u3=onChildAdded(ref(FB.rtdb,`rooms/${c}/kills`), s=>{ this.killed.add(Number(s.key)); });
+      const u4=onChildAdded(ref(FB.rtdb,`rooms/${c}/bossDown`), s=>{ if(typeof mpOnBossDown==='function') mpOnBossDown(Number(s.key)); });
+      this.unsub=[u1,u2,u3,u4];
+    },
+    async startMatch(){
+      if(!this.code) return;
+      const {ref,update,remove}=this._fns();
+      try{ await remove(ref(FB.rtdb,`rooms/${this.code}/kills`)); await remove(ref(FB.rtdb,`rooms/${this.code}/bossDown`)); }catch(e){}
+      this.killed=new Set(); this.bossSeen=new Set();
+      const seed=Math.floor(Math.random()*2e9);
+      await update(ref(FB.rtdb,`rooms/${this.code}/meta`), { state:'live', seed, startAt:this.now()+3600 });
+    },
+    send(p){ if(!this.code) return; const t=Date.now(); if(t-this.lastSend<80) return; this.lastSend=t;
+      const {ref,update}=this._fns(); try{ update(ref(FB.rtdb,`rooms/${this.code}/players/${this.pid}`), p); }catch(e){} },
+    reportKill(gi){ if(!this.code||this.killed.has(gi)) return; this.killed.add(gi);
+      const {ref,set}=this._fns(); try{ set(ref(FB.rtdb,`rooms/${this.code}/kills/${gi}`), true); }catch(e){} },
+    reportBossDown(bi){ if(!this.code) return; const {ref,set}=this._fns(); try{ set(ref(FB.rtdb,`rooms/${this.code}/bossDown/${bi}`), true); }catch(e){} },
+    leave(){
+      const {ref,remove}=this._fns();
+      try{ if(this.code&&ref) remove(ref(FB.rtdb,`rooms/${this.code}/players/${this.pid}`)); }catch(e){}
+      for(const u of this.unsub){ try{ u(); }catch(e){} }
+      this.unsub=[]; this.code=null; this.players={}; this.killed=new Set(); this.bossSeen=new Set();
+    }
+  };
+
   // ---------- entities ----------
   let player=null;
   let bullets=[], enemies=[], particles=[], powerups=[], floaters=[], stars=[], neb=[], ebullets=[];
@@ -371,6 +526,9 @@
   let beatBest=false;
   let bossActive=false, bossRef=null, bossNum=0, nextBossScore=500000;
   let currentName='', submitted=false;
+  let MODE='solo';                         // 'solo' | 'coop'
+  let gi=0, nextSpawnT=0.6, nextBossT=75;  // deterministic spawn/boss schedule
+  let ghosts={};                           // interpolated positions of other players' ships
   const MAX_LIVES=5;
 
   function makeStars(){
@@ -391,6 +549,7 @@
     bullets=[]; enemies=[]; particles=[]; powerups=[]; floaters=[]; ebullets=[];
     score=0; lives=3; streak=0; mult=1; elapsed=0; spawnAcc=0; fireCd=0; shake=0; runTime=0; beatBest=false;
     bossActive=false; bossRef=null; bossNum=0; nextBossScore=500000;
+    gi=0; nextSpawnT=0.6; nextBossT=75; ghosts={};
     bossbar.classList.remove('on'); stage.classList.remove('danger');
     player={ x:W*0.5, y:H*0.72, tx:W*0.5, ty:H*0.72, rapidT:0, spreadT:0, shieldT:0, invulnT:1.0, thr:0 };
     pointer.x=W*0.5; pointer.y=H*0.72;
@@ -404,14 +563,14 @@
   cvs.addEventListener('pointerdown', e=>{ const p=toWorld(e); pointer.x=p.x; pointer.y=p.y; pointer.active=true; }, {passive:true});
 
   window.addEventListener('keydown', e=>{
-    if(e.target===pilotInput) return;   // let the name field type freely; it handles Enter itself
+    if(e.target===pilotInput || e.target===joinCode) return;   // let text fields type freely
     const k=e.key.toLowerCase();
     if(['arrowleft','a'].includes(k)) keys.left=true;
     else if(['arrowright','d'].includes(k)) keys.right=true;
     else if(['arrowup','w'].includes(k)) keys.up=true;
     else if(['arrowdown','s'].includes(k)) keys.down=true;
     if(k===' '||k==='enter'||['arrowleft','arrowright','arrowup','arrowdown'].includes(k)) e.preventDefault();
-    if((k===' '||k==='enter') && state!=='playing') startGame();
+    if((k===' '||k==='enter') && (state==='start' || (state==='over' && MODE==='solo'))){ MODE='solo'; startGame(); }
   });
   window.addEventListener('keyup', e=>{
     const k=e.key.toLowerCase();
@@ -421,19 +580,28 @@
     else if(['arrowdown','s'].includes(k)) keys.down=false;
   });
 
-  function showStart(){ state='start'; overScreen.classList.add('hide'); startScreen.classList.remove('hide'); }
+  function showScreen(s){
+    startScreen.classList.toggle('hide', s!=='start');
+    lobbyScreen.classList.toggle('hide', s!=='lobby');
+    roomScreen.classList.toggle('hide', s!=='room');
+    countScreen.classList.toggle('hide', s!=='count');
+    overScreen.classList.toggle('hide', s!=='over');
+  }
+  function setState(s){ state=s; showScreen(s); }
+  function showStart(){ setState('start'); }
+  function validName(){ return (pilotInput.value||'').trim().replace(/\s+/g,' ').slice(0,16); }
+  function shakeName(){ setState('start'); pilotInput.classList.remove('shake'); void pilotInput.offsetWidth; pilotInput.classList.add('shake'); pilotInput.focus(); }
   function startGame(){
     initAudio();
     if(actx && actx.state==='suspended') actx.resume();
     if(state==='playing') return;
-    const nm = (pilotInput.value||'').trim().replace(/\s+/g,' ').slice(0,16);
-    if(!nm){ showStart(); pilotInput.classList.remove('shake'); void pilotInput.offsetWidth; pilotInput.classList.add('shake'); pilotInput.focus(); return; }
-    currentName = nm; pilotInput.value = nm;
+    MODE='solo';
+    const nm=validName();
+    if(!nm){ shakeName(); return; }
+    currentName=nm; pilotInput.value=nm;
     try{ localStorage.setItem('vr_name', nm); }catch(e){}
     resetGame(); submitted=false;
-    state='playing';
-    startScreen.classList.add('hide');
-    overScreen.classList.add('hide');
+    setState('playing');
   }
 
   // audio button
@@ -446,32 +614,28 @@
   });
   paintAudioBtn();
 
-  // ---------- spawning ----------
-  function pickType(){
-    const t=elapsed, r=Math.random();
+  // ---------- spawning (deterministic: seeded + closed-form so all co-op clients agree) ----------
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  function spawnRng(seed, k){ return mulberry32((seed ^ Math.imul(k+1,2654435761)) >>> 0); }
+  function pickTypeR(t, rnd){
+    const r=rnd();
     if(t<7) return 'drone';
-    if(t<16) return r<0.75 ? 'drone':'darter';
-    if(t<28) return r<0.55 ? 'drone' : r<0.80 ? 'darter':'rock';
-    return r<0.45 ? 'drone' : r<0.72 ? 'darter':'rock';
+    if(t<16) return r<0.75?'drone':'darter';
+    if(t<28) return r<0.55?'drone': r<0.80?'darter':'rock';
+    return r<0.45?'drone': r<0.72?'darter':'rock';
   }
-  function spawnEnemy(){
-    const type=pickType();
-    const ramp=Math.min(elapsed*0.006, 0.24);
-    const x=rand(0.12,0.88)*W;
+  // idx = global enemy index (shared across clients), tSpawn = scheduled spawn time, rnd = seeded PRNG
+  function spawnDeterministic(idx, tSpawn, rnd){
+    const type=pickTypeR(tSpawn, rnd);
+    const ramp=Math.min(tSpawn*0.006, 0.24);
+    const xf=0.12 + rnd()*0.76;                 // fractional x → same relative spot on every screen
+    const b={ type, gi:idx, spawnT:tSpawn, x0:xf*W, x:xf*W, age:0, ph:rnd()*TAU };
     if(type==='drone'){
-      enemies.push({type,x,y:-0.06*H,r:0.027*H,hp:1,mhp:1,vy:(0.15+ramp)*H,age:0,
-        wf:rand(1.4,3),ph:rand(0,TAU),amp:rand(0.05,0.13)*W,color:'#B98BFF'});
+      enemies.push(Object.assign(b,{ y0:-0.06*H, y:-0.06*H, vy:(0.15+ramp)*H, wf:1.4+rnd()*1.6, amp:(0.05+rnd()*0.08)*W, r:0.027*H, hp:1, mhp:1, color:'#B98BFF' }));
     } else if(type==='darter'){
-      enemies.push({type,x,y:-0.06*H,r:0.024*H,hp:1,mhp:1,vy:(0.28+ramp*1.15)*H,age:0,
-        dir:Math.random()<0.5?-1:1,hs:rand(0.17,0.30)*W,color:'#FF9E4D'});
+      enemies.push(Object.assign(b,{ y0:-0.06*H, y:-0.06*H, vy:(0.28+ramp*1.15)*H, wf:2.2+rnd()*1.5, amp:(0.10+rnd()*0.06)*W, r:0.024*H, hp:1, mhp:1, color:'#FF9E4D' }));
     } else {
-      enemies.push({type,x,y:-0.10*H,r:0.055*H,hp:3,mhp:3,vy:(0.10+ramp*0.55)*H,age:0,
-        rot:rand(0,TAU),spin:rand(-1.4,1.4),verts:makeRock(),color:'#7E8CE8'});
-    }
-    // occasional mini-swarm
-    if(elapsed>18 && Math.random()<0.12){
-      enemies.push({type:'drone',x:clamp(x+rand(-0.14,0.14)*W,0.1*W,0.9*W),y:-0.12*H,r:0.027*H,hp:1,mhp:1,
-        vy:(0.15+ramp)*H,age:0,wf:rand(1.4,3),ph:rand(0,TAU),amp:rand(0.05,0.13)*W,color:'#B98BFF'});
+      enemies.push(Object.assign(b,{ y0:-0.10*H, y:-0.10*H, vy:(0.10+ramp*0.55)*H, wf:0.5+rnd()*0.7, amp:(0.02+rnd()*0.04)*W, r:0.055*H, hp:3, mhp:3, color:'#7E8CE8', rot:rnd()*TAU, spin:(rnd()-0.5)*3, verts:makeRock() }));
     }
   }
 
@@ -532,13 +696,48 @@
     if(lives<=0) gameOver();
   }
   function gameOver(){
-    state='over'; runTime=elapsed; sOver();
+    setState('over'); runTime=elapsed; sOver();
     if(score>best){ best=score; beatBest=true; localStorage.setItem('vr_best',String(best)); }
     final.textContent=pad(score);
     newbest.style.visibility = beatBest ? 'visible' : 'hidden';
     overstats.textContent = 'TIME '+fmtTime(runTime)+' · BEST '+pad(best);
-    overScreen.classList.remove('hide');
+    if(MODE==='coop'){
+      againBtn.textContent='BACK TO ROOM ▸'; changeBtn.textContent='LEAVE ROOM';
+      NET.lastSend=0; NET.send({ x:player.x/W, y:player.y/H, score, lives, alive:false });
+    } else {
+      againBtn.textContent='PLAY AGAIN ▸'; changeBtn.textContent='CHANGE PILOT';
+    }
     if(!submitted){ submitted=true; showLeaderboard(currentName, Math.max(0, Math.floor(score))); }
+  }
+
+  // ---------- multiplayer callbacks (invoked by NET listeners) ----------
+  function mpOnMeta(m){
+    if(!m) return;
+    if(m.state==='live' && (state==='room' || state==='lobby' || state==='over')){
+      MODE='coop'; currentName=NET.name||currentName;
+      resetGame(); submitted=false; elapsed=0;
+      setState('count');
+    }
+  }
+  function mpOnPlayers(){
+    if(roomcode) roomcode.textContent = NET.code || '----';
+    if(roomlist){
+      const arr=Object.values(NET.players||{}).sort((a,b)=>(a.joined||0)-(b.joined||0));
+      if(roomcount) roomcount.textContent = arr.length ? (arr.length+' HERE') : '';
+      roomlist.innerHTML = arr.length
+        ? arr.map(p=>'<li class="brow"><span class="brank">◈</span><span class="bname">'+esc(p.name||'—')+'</span><span class="bscore">'+(p.alive===false?'DOWN':'READY')+'</span></li>').join('')
+        : '<li class="brow loading">WAITING FOR PILOTS…</li>';
+    }
+  }
+  async function doJoin(){
+    const nm=currentName||validName(); if(!nm){ shakeName(); return; }
+    initAudio(); if(actx && actx.state==='suspended') actx.resume();
+    const code=(joinCode.value||'').trim();
+    if(!code){ mpmsg.textContent='ENTER A ROOM CODE'; return; }
+    mpmsg.textContent='JOINING…';
+    const r=await NET.joinRoom(code, nm);
+    if(r.err){ mpmsg.textContent = r.err==='offline'?'MULTIPLAYER NEEDS THE LIVE SITE': r.err==='notfound'?'NO ROOM WITH THAT CODE':'COULD NOT JOIN'; return; }
+    mpmsg.textContent=''; roomcode.textContent=NET.code; setState('room');
   }
 
   function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -568,13 +767,15 @@
   function spawnBoss(){
     bossActive=true; bossNum++; nextBossScore+=500000;
     const hp=50+(bossNum-1)*30;
+    const brng = (MODE==='coop') ? mulberry32((NET.seed ^ Math.imul(bossNum,40503)) >>> 0) : Math.random;
     const b={ type:'boss', x:W*0.5, y:-0.22*H, ty:0.17*H, r:0.11*H, hp, mhp:hp, vy:0,
-      age:0, phase:'enter', fireT:1.6, flash:0, sweepPh:rand(0,TAU), ringRot:0, color:'#FF5A2E' };
+      spawnT:elapsed, age:0, phase:'enter', fireT:1.6, flash:0, sweepPh:brng()*TAU, ringRot:0, color:'#FF5A2E' };
     enemies.push(b); bossRef=b;
     addFloater(W*0.5,H*0.30,'WARLORD APPROACHES','#FF7A54'); addShake(10);
     blip(70,0.6,'sawtooth',0.16);
   }
   function updateBoss(e,dt){
+    e.age = elapsed - e.spawnT;
     e.ringRot+=dt*0.7; if(e.flash>0) e.flash-=dt;
     if(e.phase==='enter'){
       e.y += (e.ty-e.y)*Math.min(1,2.4*dt);
@@ -602,6 +803,19 @@
     powerups.push({x:e.x,y:e.y,type:'life',r:0.034*H,age:0,color:'#FFD84D'});
     ebullets=[]; bossActive=false; bossRef=null;
     bossbar.classList.remove('on');
+    if(MODE==='coop'){ NET.bossSeen.add(bossNum); NET.reportBossDown(bossNum); }
+  }
+  // a teammate downed the boss → clear it here too and grant the life drop
+  function mpOnBossDown(bi){
+    if(MODE!=='coop' || NET.bossSeen.has(bi)) return;
+    NET.bossSeen.add(bi);
+    if(bossActive && bossRef){
+      const e=bossRef, idx=enemies.indexOf(e);
+      explode(e.x,e.y,'#FF5A2E',40); addShake(12); sExpl();
+      powerups.push({x:e.x,y:e.y,type:'life',r:0.034*H,age:0,color:'#FFD84D'});
+      if(idx>=0) enemies.splice(idx,1);
+      ebullets=[]; bossActive=false; bossRef=null; bossbar.classList.remove('on');
+    }
   }
 
   // ---------- update ----------
@@ -618,8 +832,10 @@
 
     shake=Math.max(0,shake-38*dt);
 
+    if(state==='count'){ if(NET.now()>=NET.startAt) setState('playing'); return; }
     if(state!=='playing') return;
-    elapsed+=dt;
+    if(MODE==='coop'){ elapsed=(NET.now()-NET.startAt)/1000; if(elapsed<0) elapsed=0; }
+    else elapsed+=dt;
 
     // ---- player movement ----
     const pr=0.035*H;
@@ -648,25 +864,34 @@
     for(let i=bullets.length-1;i>=0;i--){ const b=bullets[i]; b.x+=b.vx*dt; b.y+=b.vy*dt;
       if(b.y<-20||b.x<-20||b.x>W+20) bullets.splice(i,1); }
 
-    // ---- boss ----
-    if(!bossActive && score>=nextBossScore) spawnBoss();
+    // ---- boss trigger (score-based solo, shared timer in co-op) ----
+    if(MODE==='coop'){
+      if(!bossActive && elapsed>=nextBossT){ spawnBoss(); nextBossT+=75; }
+    } else {
+      if(!bossActive && score>=nextBossScore) spawnBoss();
+    }
 
-    // ---- spawn (paused during boss) ----
-    if(!bossActive){
-      spawnAcc+=dt;
-      const interval=clamp(1.0-elapsed*0.013,0.30,1.0);
-      if(spawnAcc>=interval){ spawnAcc=0; spawnEnemy(); }
+    // ---- enemy spawns (deterministic schedule; solo pauses during boss) ----
+    const pauseSpawns = (MODE==='solo' && bossActive);
+    if(pauseSpawns){ if(nextSpawnT<elapsed) nextSpawnT=elapsed; }
+    else {
+      while(elapsed>=nextSpawnT){
+        const rnd = (MODE==='coop') ? spawnRng(NET.seed, gi) : Math.random;
+        spawnDeterministic(gi, nextSpawnT, rnd);
+        gi++;
+        nextSpawnT += clamp(1.0-nextSpawnT*0.013, 0.30, 1.0);
+      }
     }
 
     // ---- enemies ----
-    const m=0.03*W;
-    for(let i=enemies.length-1;i>=0;i--){ const e=enemies[i]; e.age+=dt;
+    for(let i=enemies.length-1;i>=0;i--){ const e=enemies[i];
       if(e.type==='boss'){ updateBoss(e,dt); }
       else {
-        e.y+=e.vy*dt;
-        if(e.type==='drone') e.x+=Math.sin(e.age*e.wf+e.ph)*e.amp*dt;
-        else if(e.type==='darter'){ e.x+=e.dir*e.hs*dt; if(e.x<m){e.x=m;e.dir=1;} else if(e.x>W-m){e.x=W-m;e.dir=-1;} }
-        else if(e.type==='rock') e.rot+=e.spin*dt;
+        e.age = elapsed - e.spawnT;                       // closed-form → identical across clients
+        e.y = e.y0 + e.vy*e.age;
+        e.x = e.x0 + Math.sin(e.age*e.wf + e.ph)*e.amp;
+        if(e.type==='rock') e.rot += e.spin*dt;
+        if(MODE==='coop' && NET.killed.has(e.gi)){ enemies.splice(i,1); continue; }  // teammate killed it
         if(e.y>H+e.r*2){ enemies.splice(i,1); continue; }
       }
 
@@ -675,8 +900,11 @@
         const dx=b.x-e.x, dy=b.y-e.y;
         if(dx*dx+dy*dy < (e.r+b.r)*(e.r+b.r)){
           bullets.splice(j,1); e.hp--;
-          if(e.hp<=0){ if(e.type==='boss') bossDefeated(e); else reward(e); enemies.splice(i,1); }
-          else spark(b.x,b.y,e.color);
+          if(e.hp<=0){
+            if(e.type==='boss'){ bossDefeated(e); }
+            else { reward(e); if(MODE==='coop') NET.reportKill(e.gi); }
+            enemies.splice(i,1);
+          } else spark(b.x,b.y,e.color);
           break;
         }
       }
@@ -712,6 +940,9 @@
       if(dx*dx+dy*dy<rr*rr){ applyPower(p.type); explode(p.x,p.y,p.color,10); powerups.splice(i,1); continue; }
       if(p.y>H+p.r*2) powerups.splice(i,1);
     }
+
+    // broadcast my ship to the room (throttled ~12Hz inside send)
+    if(MODE==='coop') NET.send({ x:player.x/W, y:player.y/H, score, lives, alive:true });
 
     // danger vignette at 1 life
     stage.classList.toggle('danger', lives===1);
@@ -760,7 +991,8 @@
     }
     ctx.restore();
 
-    // player
+    // other players (ghost ships) then me
+    if(MODE==='coop' && (state==='playing'||state==='count'||state==='over')) drawGhosts();
     if(state==='playing') drawPlayer();
 
     // particles
@@ -820,6 +1052,29 @@
     ctx.shadowBlur=0; ctx.fillStyle='#6e0f1c';
     ctx.beginPath(); ctx.arc(0,0,r*0.14,0,TAU); ctx.fill();
   }
+  function hueFor(pid){ let h=0; for(let i=0;i<pid.length;i++) h=(h*31+pid.charCodeAt(i))>>>0; return h%360; }
+  function drawGhostShip(x,y,name,alive,hue){
+    const s=0.03*H, col='hsl('+hue+',85%,68%)';
+    ctx.save(); ctx.translate(x,y); ctx.globalAlpha = alive?0.6:0.26;
+    ctx.shadowColor=col; ctx.shadowBlur=9; ctx.fillStyle=col;
+    ctx.beginPath(); ctx.moveTo(0,-s*1.15); ctx.lineTo(s*0.85,s*0.8); ctx.lineTo(0,s*0.45); ctx.lineTo(-s*0.85,s*0.8); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur=0; ctx.globalAlpha = alive?0.92:0.5;
+    ctx.fillStyle=col; ctx.textAlign='center'; ctx.font='700 9px ui-monospace, Menlo, Monaco, monospace';
+    ctx.fillText((name||'').toUpperCase().slice(0,10)+(alive?'':' ☠'), 0, -s*1.7);
+    ctx.restore();
+  }
+  function drawGhosts(){
+    const P=NET.players||{};
+    for(const pid in P){
+      if(pid===NET.pid) continue;
+      const p=P[pid]; if(!p) continue;
+      const tx=(p.x==null?0.5:p.x)*W, ty=(p.y==null?0.7:p.y)*H;
+      let g=ghosts[pid];
+      if(!g){ g=ghosts[pid]={x:tx,y:ty}; } else { g.x+=(tx-g.x)*0.28; g.y+=(ty-g.y)*0.28; }
+      drawGhostShip(g.x,g.y,p.name||'',p.alive!==false,hueFor(pid));
+    }
+    for(const pid in ghosts){ if(!(pid in P)) delete ghosts[pid]; }
+  }
   function drawEnemy(e){
     ctx.save(); ctx.translate(e.x,e.y);
     ctx.shadowColor=e.color; ctx.shadowBlur=12;
@@ -877,11 +1132,19 @@
         buffRapid=document.getElementById('buffRapid'), buffSpread=document.getElementById('buffSpread'),
         buffShield=document.getElementById('buffShield'),
         bossbar=document.getElementById('bossbar'), bossfill=document.getElementById('bossfill'),
-        pilotInput=document.getElementById('pilot'), launchBtn=document.getElementById('launchBtn'),
+        pilotInput=document.getElementById('pilot'), soloBtn=document.getElementById('soloBtn'),
+        mpBtn=document.getElementById('mpBtn'), coopboard=document.getElementById('coopboard'),
         againBtn=document.getElementById('againBtn'), changeBtn=document.getElementById('changeBtn'),
         brows=document.getElementById('brows'), boardmode=document.getElementById('boardmode'),
-        yourrank=document.getElementById('yourrank');
-  let prevLives=-1, prevMult=-1, prevScore=-1, prevBest=-1;
+        yourrank=document.getElementById('yourrank'),
+        lobbyScreen=document.getElementById('lobbyScreen'), roomScreen=document.getElementById('roomScreen'),
+        countScreen=document.getElementById('countScreen'), createBtn=document.getElementById('createBtn'),
+        joinBtn=document.getElementById('joinBtn'), joinCode=document.getElementById('joinCode'),
+        mpBackBtn=document.getElementById('mpBackBtn'), mpmsg=document.getElementById('mpmsg'),
+        startMatchBtn=document.getElementById('startMatchBtn'), leaveRoomBtn=document.getElementById('leaveRoomBtn'),
+        roomcode=document.getElementById('roomcode'), roomcount=document.getElementById('roomcount'),
+        roomlist=document.getElementById('roomlist'), countnum=document.getElementById('countnum');
+  let prevLives=-1, prevMult=-1, prevScore=-1, prevBest=-1, lastCoopSig='';
   const pad=n=> String(Math.floor(n)).padStart(6,'0');
   const fmtTime=s=>{ const m=Math.floor(s/60), ss=Math.floor(s%60); return m+':'+String(ss).padStart(2,'0'); };
 
@@ -907,6 +1170,24 @@
     const showBoss = playing && bossActive && bossRef;
     bossbar.classList.toggle('on', showBoss);
     if(showBoss) bossfill.style.width = Math.max(0, bossRef.hp/bossRef.mhp*100) + '%';
+
+    // co-op live standings
+    if(MODE==='coop' && (state==='playing'||state==='over')){
+      coopboard.classList.add('on');
+      const meId=NET.pid;
+      const arr=Object.entries(NET.players||{}).map(([pid,p])=>({
+        pid, name:p.name||'—',
+        score: pid===meId ? score : (p.score||0),
+        alive: pid===meId ? (state==='playing') : (p.alive!==false)
+      })).sort((a,b)=>b.score-a.score).slice(0,6);
+      const sig=arr.map(p=>p.pid+p.score+p.alive).join('|');
+      if(sig!==lastCoopSig){ lastCoopSig=sig;
+        coopboard.innerHTML = arr.map(p=>'<div class="crow'+(p.pid===meId?' me':'')+(p.alive?'':' dead')+'"><span class="cn">'+esc(p.name)+'</span><span class="cs">'+Number(p.score).toLocaleString()+'</span></div>').join('');
+      }
+    } else { coopboard.classList.remove('on'); lastCoopSig=''; }
+
+    // countdown number
+    if(state==='count'){ const left=(NET.startAt-NET.now())/1000; countnum.textContent = left>0.25 ? String(Math.max(1,Math.ceil(left))) : 'GO'; }
   }
 
   // ---------- loop ----------
@@ -926,11 +1207,27 @@
 
   try{ currentName = localStorage.getItem('vr_name') || ''; }catch(e){ currentName=''; }
   pilotInput.value = currentName;
-  launchBtn.addEventListener('click', startGame);
-  againBtn.addEventListener('click', startGame);
-  changeBtn.addEventListener('click', ()=>{ showStart(); pilotInput.focus(); pilotInput.select(); });
-  pilotInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); startGame(); } });
-  LB.init();   // begin loading Firebase (falls back to local if unreachable, e.g. Claude preview)
+
+  soloBtn.addEventListener('click', ()=>{ MODE='solo'; startGame(); });
+  mpBtn.addEventListener('click', ()=>{ const nm=validName(); if(!nm){ shakeName(); return; } currentName=nm; try{localStorage.setItem('vr_name',nm);}catch(e){} mpmsg.textContent=''; joinCode.value=''; setState('lobby'); });
+  mpBackBtn.addEventListener('click', ()=>{ setState('start'); });
+  createBtn.addEventListener('click', async ()=>{
+    const nm=currentName||validName(); if(!nm){ shakeName(); return; }
+    initAudio(); if(actx && actx.state==='suspended') actx.resume();
+    mpmsg.textContent='CREATING…';
+    const r=await NET.createRoom(nm);
+    if(r.err){ mpmsg.textContent = r.err==='offline' ? 'MULTIPLAYER NEEDS THE LIVE SITE' : 'COULD NOT CREATE ROOM'; return; }
+    mpmsg.textContent=''; roomcode.textContent=NET.code; setState('room');
+  });
+  joinBtn.addEventListener('click', doJoin);
+  joinCode.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); doJoin(); } });
+  startMatchBtn.addEventListener('click', ()=>{ initAudio(); if(actx && actx.state==='suspended') actx.resume(); NET.startMatch(); });
+  leaveRoomBtn.addEventListener('click', ()=>{ NET.leave(); MODE='solo'; setState('start'); });
+  againBtn.addEventListener('click', ()=>{ if(MODE==='coop'){ setState('room'); } else { MODE='solo'; startGame(); } });
+  changeBtn.addEventListener('click', ()=>{ if(MODE==='coop'){ NET.leave(); MODE='solo'; setState('start'); } else { showStart(); pilotInput.focus(); pilotInput.select(); } });
+  pilotInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); MODE='solo'; startGame(); } });
+  window.addEventListener('beforeunload', ()=>{ try{ NET.leave(); }catch(e){} });
+  FB.init();   // begin loading Firebase (falls back to local if unreachable, e.g. Claude preview)
 
   requestAnimationFrame(frame);
 })();
